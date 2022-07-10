@@ -1,6 +1,6 @@
 # deslocamento_linear
 
-A new Flutter project.
+Projeto de Robótica, deslocamento linear usando moto nema17
 
 ## Getting Started
 

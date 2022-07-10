@@ -483,18 +483,32 @@ class _MyHomePageState extends State<MyHomePage> {
   void _mqttSendLeft(){
     print("Movimentando para esquerda");
 
-    _publishMessage("m");
+    //_espPosition  _espMaxStep
+    if(_espDeslocamentoX < _espMaxStep){
+
+      int dist_atual = _espDeslocamentoX;
+      int dist_final = dist_atual+100;
+
+      _publishMessage("x$dist_final");
+    }
   }
 
   void _mqttSendRight(){
     print("Movimentando para direita");
 
-    _publishMessage("m");
+    if(_espDeslocamentoX > appCarroMinPos){
+
+      int dist_atual = _espDeslocamentoX;
+      int dist_final = dist_atual-100;
+
+      _publishMessage("x$dist_final");
+    }
   }
 
   void _mqttSendHome(){
     print("Movimentando para Home (x = 0)");
 
+    //deslocamentoX = 0
     _publishMessage("h");
   }
 
