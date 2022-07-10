@@ -330,15 +330,126 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ? _mqttSendSpeed
                                 : null,
                             child: const Text('OK'),
+                            style: ButtonStyle(
+                                  elevation: MaterialStateProperty.resolveWith<double>(
+                                        (Set<MaterialState> states) {
+                                      if (states.contains(MaterialState.pressed)
+                                          ||  states.contains(MaterialState.disabled)) {
+                                        return 0;
+                                      }
+                                      return 10;
+                                    },
+                                  )
+                              )
                           ),
                         ),
                       ),
                     ],
                   ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                          flex: 2,
+                          child: Padding(
+                              padding: EdgeInsets.only(right: 20, top: 40, left: 100),
+                              child:
+                              ElevatedButton.icon(
+                                  icon: Icon(Icons.arrow_back_rounded),
+                                  label: Text(""),
+                                  onPressed: _mqttSendLeft,
+                                  style: ButtonStyle(
+                                      elevation: MaterialStateProperty.resolveWith<double>(
+                                            (Set<MaterialState> states) {
+                                          if (states.contains(MaterialState.pressed)
+                                              ||  states.contains(MaterialState.disabled)) {
+                                            return 0;
+                                          }
+                                          return 10;
+                                        },
+                                      )
+                                  )
+                              ),
+                          )
+                      ),
+                      Expanded(
+                          flex: 2,
+                          child: Padding(
+                            padding: EdgeInsets.only(top: 40),
+                            child:
+                            ElevatedButton.icon(
+                                icon: Icon(Icons.home_filled),
+                                label: Text("Home"),
+                                onPressed: _mqttSendHome,
+                                style: ButtonStyle(
+                                    elevation: MaterialStateProperty.resolveWith<double>(
+                                          (Set<MaterialState> states) {
+                                        if (states.contains(MaterialState.pressed)
+                                            ||  states.contains(MaterialState.disabled)) {
+                                          return 0;
+                                        }
+                                        return 10;
+                                      },
+                                    )
+                                )
+                            ),
+                          )
+                      ),
+                      Expanded(
+                          flex: 2,
+                          child: Padding(
+                            padding: EdgeInsets.only(right: 100, top: 40, left: 20),
+                            child:
+                            ElevatedButton.icon(
+                                icon: Icon(Icons.arrow_forward_rounded),
+                                label: Text(""),
+                                onPressed: _mqttSendRight,
+                                style: ButtonStyle(
+                                    elevation: MaterialStateProperty.resolveWith<double>(
+                                          (Set<MaterialState> states) {
+                                        if (states.contains(MaterialState.pressed)
+                                            ||  states.contains(MaterialState.disabled)) {
+                                          return 0;
+                                        }
+                                        return 10;
+                                      },
+                                    )
+                                )
+                            ),
+                          )
+                      ),
                 ],
               ),
-            ),
-          ]
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                          flex: 2,
+                          child: Padding(
+                            padding: EdgeInsets.only(right: 100, top: 30, left: 100),
+                            child:
+                            ElevatedButton.icon(
+                                icon: Icon(Icons.settings),
+                                label: Text("Calibrar"),
+                                onPressed: _mqttSendCalibration,
+                                style: ButtonStyle(
+                                    elevation: MaterialStateProperty.resolveWith<double>(
+                                          (Set<MaterialState> states) {
+                                        if (states.contains(MaterialState.pressed)
+                                            ||  states.contains(MaterialState.disabled)) {
+                                          return 0;
+                                        }
+                                        return 10;
+                                      },
+                                    )
+                                )
+                            ),
+                          )
+                      ),
+                    ],
+                  )
+            ]),
+          )],
       ),
     );
   }
@@ -361,6 +472,30 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     final proportion = (appCarroMaxPos - appCarroMinPos) / _espMaxStep;
     espCarroPos = min(appCarroMinPos + _espPosition * proportion, appCarroMaxPos);
+  }
+
+  void _mqttSendCalibration(){
+    print("Calibrando dispositivo");
+
+    _publishMessage("c");
+  }
+
+  void _mqttSendLeft(){
+    print("Movimentando para esquerda");
+
+    _publishMessage("m");
+  }
+
+  void _mqttSendRight(){
+    print("Movimentando para direita");
+
+    _publishMessage("m");
+  }
+
+  void _mqttSendHome(){
+    print("Movimentando para Home (x = 0)");
+
+    _publishMessage("h");
   }
 
 }
