@@ -69,6 +69,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   double espCarroPos = 0;
 
+  bool isLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -197,6 +199,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final loading = ValueNotifier<bool>(false);
     final carro = Image(
       image: AssetImage('assets/carro1.png'),
       width: 75,
@@ -428,10 +431,26 @@ class _MyHomePageState extends State<MyHomePage> {
                           child: Padding(
                             padding: EdgeInsets.only(right: 100, top: 30, left: 100),
                             child:
-                            ElevatedButton.icon(
-                                icon: Icon(Icons.settings),
-                                label: Text("Calibrar"),
-                                onPressed: _mqttSendCalibration,
+                            ElevatedButton(
+                                child: isLoading
+                                    ? Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          CircularProgressIndicator(color: Colors.white,),
+                                          const SizedBox(width: 24,),
+                                          Text('Calibrando...')],
+                                    )
+                                    : Text('Calibrar'),
+                                onPressed: () async {
+                                  if(isLoading){
+                                    return;
+                                  }
+
+                                  setState(() => isLoading = true);
+                                  _mqttSendCalibration();
+                                  await Future.delayed(Duration(seconds: 2));
+                                  setState(() => isLoading = false);
+                                },//() => loading.value = !loading.value,//_mqttSendCalibration,
                                 style: ButtonStyle(
                                     elevation: MaterialStateProperty.resolveWith<double>(
                                           (Set<MaterialState> states) {
