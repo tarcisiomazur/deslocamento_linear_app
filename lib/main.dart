@@ -57,17 +57,17 @@ class _MyHomePageState extends State<MyHomePage> {
   int _espMaxStep = 0;
   int _espCalibracao = 0;
   int _espSpeed = -1;
-  double _espPosition = 0;
+  num _espPosition = 0;
 
   int speed = 25;
   int MAX_SPEED = 30;
 
   MqttConnectionState connectionState = MqttConnectionState.disconnected;
-  double appCarroPos = 100;
+  double appCarroPos = 35;
   double appCarroMaxPos = 275;
   double appCarroMinPos = 35;
 
-  double espCarroPos = 0;
+  double espCarroPos = 35;
 
   bool isLoading = false;
 
@@ -179,9 +179,12 @@ class _MyHomePageState extends State<MyHomePage> {
       Map<String, dynamic> data = jsonDecode(message);
 
       setState(() {
-        _espDeslocamentoX = data["deslocamentoX"] ?? 0;
-        _espMaxStep = data["maxStep"] ?? 0;
-        if(_espPosition != data["position"] || _espMaxStep != data["maxStep"]){
+        if(_updateFromEsp || _espDeslocamentoX != data["deslocamentoX"]){
+          _espDeslocamentoX = data["deslocamentoX"] ?? 0;
+          final proportion = _espMaxStep == 0 ? 0 : (appCarroMaxPos - appCarroMinPos) / _espMaxStep;
+          appCarroPos = min(appCarroMinPos + _espDeslocamentoX * proportion, appCarroMaxPos);
+        }
+        if(_updateFromEsp || _espPosition != data["position"] || _espMaxStep != data["maxStep"]){
           _espPosition = data["position"] ?? 0;
           _espMaxStep = data["maxStep"] ?? 0;
           _updatePosicao();
@@ -193,6 +196,7 @@ class _MyHomePageState extends State<MyHomePage> {
         }
       });
     } catch (ex) {
+      print(ex.toString());
       // ignore
     }
   }
@@ -250,11 +254,14 @@ class _MyHomePageState extends State<MyHomePage> {
                                 width: 75,
                               ),
                             ),Positioned(
-                              top: appCarroPos,
+                              top: espCarroPos,
                               child:
-                              Image(
-                                image: AssetImage('assets/carro1.png'),
-                                width: 75,
+                              Opacity(
+                                  opacity: 0.5,
+                                  child:Image(
+                                    image: AssetImage('assets/carro1.png'),
+                                    width: 75,
+                                ),
                               ),
                             ),
                             Positioned(
@@ -262,8 +269,10 @@ class _MyHomePageState extends State<MyHomePage> {
                               child:Draggable(
                                 axis: Axis.vertical,
                                 onDragUpdate: (d){
-                                  setState(() => appCarroPos = min(max(appCarroPos+d.delta.dy,appCarroMinPos),appCarroMaxPos));
+                                  setState(() =>
+                                    appCarroPos = min(max(appCarroPos+d.delta.dy,appCarroMinPos),appCarroMaxPos));
                                 },
+                                onDragEnd: _mqttSendPosition,
                                 feedback: Container(),
                                 child: carro,
                               ),
@@ -477,6 +486,12 @@ class _MyHomePageState extends State<MyHomePage> {
     _publishMessage("s$speed");
   }
 
+  void _mqttSendPosition(DraggableDetails d){
+    final int pos = (_espMaxStep*(appCarroPos-appCarroMinPos)/(appCarroMaxPos-appCarroMinPos)).floor();
+    _publishMessage("x$pos");
+    print("Change position $pos");
+  }
+
   void _changeSpeed(double value) {
     print("Change speed $value");
     if(speed != value.floor()) {
@@ -489,7 +504,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if(_espPosition < 0){
       espCarroPos = appCarroMinPos;
     }
-    final proportion = (appCarroMaxPos - appCarroMinPos) / _espMaxStep;
+    final proportion = _espMaxStep == 0 ? 0 : (appCarroMaxPos - appCarroMinPos) / _espMaxStep;
     espCarroPos = min(appCarroMinPos + _espPosition * proportion, appCarroMaxPos);
   }
 
