@@ -37,6 +37,8 @@ dependencies:
   mqtt_client: ^9.6.8
   shared_preferences: ^2.0.15
   platform_device_id: ^1.0.1
+  rulers: ^1.0.7
+  flutter_scale: ^0.1.2
 
 dev_dependencies:
   flutter_test:

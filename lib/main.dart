@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:rulers/rulers.dart';
 import 'package:typed_data/typed_data.dart' as typed;
 
 import 'package:flutter/material.dart';
@@ -53,8 +54,10 @@ class _MyHomePageState extends State<MyHomePage> {
   FocusNode speedFocus = FocusNode();
 
   bool _updateFromEsp = false;
-  int _espDeslocamentoX = 0;
-  int _espMaxStep = 0;
+  bool dragOn = false;
+
+  num _espDeslocamentoX = 0;
+  num _espMaxStep = 0;
   int _espCalibracao = 0;
   int _espSpeed = -1;
   num _espPosition = 0;
@@ -66,7 +69,6 @@ class _MyHomePageState extends State<MyHomePage> {
   double appCarroPos = 35;
   double appCarroMaxPos = 275;
   double appCarroMinPos = 35;
-
   double espCarroPos = 35;
 
   bool isLoading = false;
@@ -122,18 +124,22 @@ class _MyHomePageState extends State<MyHomePage> {
     client.onDisconnected = _onDisconnected;
     client.onAutoReconnect = _onDisconnected;
 
-    try {
-      await client.connect();
-    } catch (e) {
-      print(e);
-      _disconnect();
+    while(true) {
+      try {
+        await client.connect();
+        client.subscribe(subTopic, MqttQos.exactlyOnce);
+        subscription = client.updates?.listen(_onMessage) as StreamSubscription;
+        return;
+      } catch (e) {
+        print(e);
+        _disconnect();
+      }
     }
-    client.subscribe(subTopic, MqttQos.exactlyOnce);
-    subscription = client.updates?.listen(_onMessage) as StreamSubscription;
   }
 
   void _publishMessage(String message){
-    if(client.connectionState == MqttConnectionState.connected){
+    if(client.connectionStatus?.state == MqttConnectionState.connected ||
+        client.connectionStatus?.state == MqttConnectionState.connecting){
       final payload = MqttClientPayloadBuilder().addString(message).payload;
       if(payload is typed.Uint8Buffer) {
         print("Publish Message in $pubTopic: $message");
@@ -179,7 +185,7 @@ class _MyHomePageState extends State<MyHomePage> {
       Map<String, dynamic> data = jsonDecode(message);
 
       setState(() {
-        if(_updateFromEsp || _espDeslocamentoX != data["deslocamentoX"]){
+        if(!dragOn && (_updateFromEsp || _espDeslocamentoX != data["deslocamentoX"])){
           _espDeslocamentoX = data["deslocamentoX"] ?? 0;
           final proportion = _espMaxStep == 0 ? 0 : (appCarroMaxPos - appCarroMinPos) / _espMaxStep;
           appCarroPos = min(appCarroMinPos + _espDeslocamentoX * proportion, appCarroMaxPos);
@@ -213,168 +219,197 @@ class _MyHomePageState extends State<MyHomePage> {
         title: Text(widget.title),
       ),
       body: Column(
-          children: [
-            SizedBox(
-              width: MediaQuery
-                  .of(context)
-                  .size
-                  .width,
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                    color: connectionState == MqttConnectionState.connected
-                        ? Colors.green.withOpacity(0.5)
-                        : Colors.redAccent.withOpacity(0.5)
-                ),
-                child: Text(
-                  connectionState == MqttConnectionState.connected
-                      ? 'Conectado'
-                      : 'Desconectado',
-                ),
+        children: [
+          SizedBox(
+            width: MediaQuery
+                .of(context)
+                .size
+                .width,
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                  color: connectionState == MqttConnectionState.connected
+                      ? Colors.green.withOpacity(0.5)
+                      : Colors.redAccent.withOpacity(0.5)
+              ),
+              child: Text(
+                connectionState == MqttConnectionState.connected
+                    ? 'Conectado'
+                    : 'Desconectado',
               ),
             ),
-            SingleChildScrollView(
+          ),
+          Expanded(
+            child: SingleChildScrollView(
               child: Column(
-                children: [
-                  Text(
-                    '$_espDeslocamentoX mm',
-                    style: Theme
-                        .of(context)
-                        .textTheme
-                        .headline4,
-                  ),
-                  ClipRRect(
-                      child: Container(
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              child:
-                              Image(
-                                image: AssetImage('assets/atuador1.png'),
-                                width: 75,
-                              ),
-                            ),Positioned(
-                              top: espCarroPos,
-                              child:
-                              Opacity(
-                                  opacity: 0.5,
-                                  child:Image(
-                                    image: AssetImage('assets/carro1.png'),
-                                    width: 75,
+                  children: [
+                    Text(
+                      '$_espPosition mm -> $_espDeslocamentoX mm',
+                      style: Theme
+                          .of(context)
+                          .textTheme
+                          .headline4,
+                    ),
+                    ClipRRect(
+                        child: Container(
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                child:
+                                Image(
+                                  image: AssetImage('assets/atuador1.png'),
+                                  width: 75,
                                 ),
                               ),
-                            ),
-                            Positioned(
-                              top: appCarroPos,
-                              child:Draggable(
-                                axis: Axis.vertical,
-                                onDragUpdate: (d){
-                                  setState(() =>
-                                    appCarroPos = min(max(appCarroPos+d.delta.dy,appCarroMinPos),appCarroMaxPos));
-                                },
-                                onDragEnd: _mqttSendPosition,
-                                feedback: Container(),
-                                child: carro,
+                              Positioned(
+                                top: espCarroPos,
+                                child:
+                                Opacity(
+                                  opacity: 0.5,
+                                  child: Image(
+                                    image: AssetImage('assets/carro1.png'),
+                                    width: 75,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      )
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 4,
-                        child: Padding(
-                          padding: EdgeInsets.only(left: 20, top: 16),
-                          child: TextFormField(
-                            controller: speedController,
-                            autovalidateMode: AutovalidateMode
-                                .onUserInteraction,
-                            validator: (newValue) {
-                              var d = int.tryParse(newValue ?? "") ?? -1;
-                              return d < 0 || d > MAX_SPEED
-                                  ? "A velocidade deve estar entre 0 e $MAX_SPEED"
-                                  : null;
-                            },
-                            focusNode: speedFocus,
-                            decoration: InputDecoration(
-                                border: OutlineInputBorder(),
-                                labelText: 'Velocidade',
-                                errorMaxLines: 2,
-                                errorStyle: TextStyle(
-                                  fontSize: Theme
-                                      .of(context)
-                                      .textTheme
-                                      .labelSmall
-                                      ?.fontSize ?? 10,
-                                )
-                            ),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
+                              Positioned(
+                                top: appCarroPos,
+                                child: Draggable(
+                                  axis: Axis.vertical,
+                                  onDragStarted: () => dragOn = true,
+                                  onDragUpdate: (d) {
+                                    setState(() =>
+                                    appCarroPos = min(max(
+                                        appCarroPos + d.delta.dy,
+                                        appCarroMinPos), appCarroMaxPos));
+                                  },
+                                  onDragEnd: _mqttSendPosition,
+                                  feedback: Container(),
+                                  child: carro,
+                                ),
+                              ),
+                              Positioned(
+                                child: RulerBarWidget(
+                                  axis: Axis.vertical,
+                                  behindRangeBarColor: Colors.red,
+                                  num: 9,
+                                  indicatorWidget: Icon(Icons.abc),
+                                  lowerLimit:5,
+                                  inRangeBarColor: Colors.grey,
+                                  midInterval: 9,
+                                  midLimitLower: 1,
+                                  midLimitUpper: 90,
+                                  normalBarColor: Colors.green,
+                                  outRangeBarColor: Colors.orange,
+                                  type: RulerBar.SMALL_BAR,
+                                  upperLimit: 100,
+                                ),
+                              ),
                             ],
-                            keyboardType: TextInputType.number,
                           ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 6,
-                        child: Padding(
-                          padding: EdgeInsets.only(top: 20),
-                          child:
-                          Slider(
-                            value: speed.toDouble(),
-                            max: MAX_SPEED.toDouble(),
-                            min: 0,
-                            divisions: MAX_SPEED,
-                            onChanged: _changeSpeed,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Padding(
-                          padding: EdgeInsets.only(right: 10, top: 20),
-                          child:
-                          ElevatedButton(
-                            onPressed: _espSpeed != speed
-                                ? _mqttSendSpeed
-                                : null,
-                            child: const Text('OK'),
-                            style: ButtonStyle(
-                                  elevation: MaterialStateProperty.resolveWith<double>(
-                                        (Set<MaterialState> states) {
-                                      if (states.contains(MaterialState.pressed)
-                                          ||  states.contains(MaterialState.disabled)) {
-                                        return 0;
-                                      }
-                                      return 10;
-                                    },
+                        )
+                    ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: Padding(
+                            padding: EdgeInsets.only(left: 20, top: 16),
+                            child: TextFormField(
+                              controller: speedController,
+                              autovalidateMode: AutovalidateMode
+                                  .onUserInteraction,
+                              validator: (newValue) {
+                                var d = int.tryParse(newValue ?? "") ?? -1;
+                                return d < 0 || d > MAX_SPEED
+                                    ? "A velocidade deve estar entre 0 e $MAX_SPEED"
+                                    : null;
+                              },
+                              focusNode: speedFocus,
+                              decoration: InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  labelText: 'Velocidade',
+                                  errorMaxLines: 2,
+                                  errorStyle: TextStyle(
+                                    fontSize: Theme
+                                        .of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.fontSize ?? 10,
                                   )
-                              )
+                              ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly
+                              ],
+                              keyboardType: TextInputType.number,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
+                        Expanded(
+                          flex: 6,
+                          child: Padding(
+                            padding: EdgeInsets.only(top: 20),
+                            child:
+                            Slider(
+                              value: speed.toDouble(),
+                              max: MAX_SPEED.toDouble(),
+                              min: 0,
+                              divisions: MAX_SPEED,
+                              onChanged: _changeSpeed,
+                            ),
+                          ),
+                        ),
+                        Expanded(
                           flex: 2,
                           child: Padding(
-                              padding: EdgeInsets.only(right: 20, top: 40, left: 100),
+                            padding: EdgeInsets.only(right: 10, top: 20),
+                            child:
+                            ElevatedButton(
+                                onPressed: _espSpeed != speed
+                                    ? _mqttSendSpeed
+                                    : null,
+                                child: const Text('OK'),
+                                style: ButtonStyle(
+                                    elevation: MaterialStateProperty
+                                        .resolveWith<double>(
+                                          (Set<MaterialState> states) {
+                                        if (states.contains(
+                                            MaterialState.pressed)
+                                            || states.contains(
+                                                MaterialState.disabled)) {
+                                          return 0;
+                                        }
+                                        return 10;
+                                      },
+                                    )
+                                )
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                            flex: 2,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                  right: 20, top: 40, left: 100),
                               child:
                               ElevatedButton.icon(
                                   icon: Icon(Icons.arrow_back_rounded),
                                   label: Text(""),
                                   onPressed: _mqttSendLeft,
                                   style: ButtonStyle(
-                                      elevation: MaterialStateProperty.resolveWith<double>(
+                                      elevation: MaterialStateProperty
+                                          .resolveWith<double>(
                                             (Set<MaterialState> states) {
-                                          if (states.contains(MaterialState.pressed)
-                                              ||  states.contains(MaterialState.disabled)) {
+                                          if (states.contains(
+                                              MaterialState.pressed)
+                                              || states.contains(
+                                                  MaterialState.disabled)) {
                                             return 0;
                                           }
                                           return 10;
@@ -382,102 +417,117 @@ class _MyHomePageState extends State<MyHomePage> {
                                       )
                                   )
                               ),
-                          )
-                      ),
-                      Expanded(
-                          flex: 2,
-                          child: Padding(
-                            padding: EdgeInsets.only(top: 40),
-                            child:
-                            ElevatedButton.icon(
-                                icon: Icon(Icons.home_filled),
-                                label: Text("Home"),
-                                onPressed: _mqttSendHome,
-                                style: ButtonStyle(
-                                    elevation: MaterialStateProperty.resolveWith<double>(
-                                          (Set<MaterialState> states) {
-                                        if (states.contains(MaterialState.pressed)
-                                            ||  states.contains(MaterialState.disabled)) {
-                                          return 0;
-                                        }
-                                        return 10;
-                                      },
-                                    )
-                                )
-                            ),
-                          )
-                      ),
-                      Expanded(
-                          flex: 2,
-                          child: Padding(
-                            padding: EdgeInsets.only(right: 100, top: 40, left: 20),
-                            child:
-                            ElevatedButton.icon(
-                                icon: Icon(Icons.arrow_forward_rounded),
-                                label: Text(""),
-                                onPressed: _mqttSendRight,
-                                style: ButtonStyle(
-                                    elevation: MaterialStateProperty.resolveWith<double>(
-                                          (Set<MaterialState> states) {
-                                        if (states.contains(MaterialState.pressed)
-                                            ||  states.contains(MaterialState.disabled)) {
-                                          return 0;
-                                        }
-                                        return 10;
-                                      },
-                                    )
-                                )
-                            ),
-                          )
-                      ),
-                ],
-              ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                          flex: 2,
-                          child: Padding(
-                            padding: EdgeInsets.only(right: 100, top: 30, left: 100),
-                            child:
-                            ElevatedButton(
-                                child: isLoading
-                                    ? Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          CircularProgressIndicator(color: Colors.white,),
-                                          const SizedBox(width: 24,),
-                                          Text('Calibrando...')],
-                                    )
-                                    : Text('Calibrar'),
-                                onPressed: () async {
-                                  if(isLoading){
-                                    return;
-                                  }
+                            )
+                        ),
+                        Expanded(
+                            flex: 2,
+                            child: Padding(
+                              padding: EdgeInsets.only(top: 40),
+                              child:
+                              ElevatedButton.icon(
+                                  icon: Icon(Icons.home_filled),
+                                  label: Text("Home"),
+                                  onPressed: _mqttSendHome,
+                                  style: ButtonStyle(
+                                      elevation: MaterialStateProperty
+                                          .resolveWith<double>(
+                                            (Set<MaterialState> states) {
+                                          if (states.contains(
+                                              MaterialState.pressed)
+                                              || states.contains(
+                                                  MaterialState.disabled)) {
+                                            return 0;
+                                          }
+                                          return 10;
+                                        },
+                                      )
+                                  )
+                              ),
+                            )
+                        ),
+                        Expanded(
+                            flex: 2,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                  right: 100, top: 40, left: 20),
+                              child:
+                              ElevatedButton.icon(
+                                  icon: Icon(Icons.arrow_forward_rounded),
+                                  label: Text(""),
+                                  onPressed: _mqttSendRight,
+                                  style: ButtonStyle(
+                                      elevation: MaterialStateProperty
+                                          .resolveWith<double>(
+                                            (Set<MaterialState> states) {
+                                          if (states.contains(
+                                              MaterialState.pressed)
+                                              || states.contains(
+                                                  MaterialState.disabled)) {
+                                            return 0;
+                                          }
+                                          return 10;
+                                        },
+                                      )
+                                  )
+                              ),
+                            )
+                        ),
+                      ],
+                    ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                            flex: 2,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                  right: 100, top: 30, left: 100),
+                              child:
+                              ElevatedButton(
+                                  child: isLoading
+                                      ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      CircularProgressIndicator(
+                                        color: Colors.white,),
+                                      const SizedBox(width: 24,),
+                                      Text('Calibrando...')],
+                                  )
+                                      : Text('Calibrar'),
+                                  onPressed: () async {
+                                    if (isLoading) {
+                                      return;
+                                    }
 
-                                  setState(() => isLoading = true);
-                                  _mqttSendCalibration();
-                                  await Future.delayed(Duration(seconds: 2));
-                                  setState(() => isLoading = false);
-                                },//() => loading.value = !loading.value,//_mqttSendCalibration,
-                                style: ButtonStyle(
-                                    elevation: MaterialStateProperty.resolveWith<double>(
-                                          (Set<MaterialState> states) {
-                                        if (states.contains(MaterialState.pressed)
-                                            ||  states.contains(MaterialState.disabled)) {
-                                          return 0;
-                                        }
-                                        return 10;
-                                      },
-                                    )
-                                )
-                            ),
-                          )
-                      ),
-                    ],
-                  )
-            ]),
-          )],
+                                    setState(() => isLoading = true);
+                                    _mqttSendCalibration();
+                                    await Future.delayed(Duration(seconds: 2));
+                                    setState(() => isLoading = false);
+                                  },
+                                  //() => loading.value = !loading.value,//_mqttSendCalibration,
+                                  style: ButtonStyle(
+                                      elevation: MaterialStateProperty
+                                          .resolveWith<double>(
+                                            (Set<MaterialState> states) {
+                                          if (states.contains(
+                                              MaterialState.pressed)
+                                              || states.contains(
+                                                  MaterialState.disabled)) {
+                                            return 0;
+                                          }
+                                          return 10;
+                                        },
+                                      )
+                                  )
+                              ),
+                            )
+                        ),
+                      ],
+                    ),
+                  ]),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -486,10 +536,14 @@ class _MyHomePageState extends State<MyHomePage> {
     _publishMessage("s$speed");
   }
 
-  void _mqttSendPosition(DraggableDetails d){
+  void _mqttSendPosition(DraggableDetails d) async{
     final int pos = (_espMaxStep*(appCarroPos-appCarroMinPos)/(appCarroMaxPos-appCarroMinPos)).floor();
+    /// TODO converter para num
     _publishMessage("x$pos");
     print("Change position $pos");
+    await Future.delayed(Duration(seconds: 2));
+    dragOn = false;
+
   }
 
   void _changeSpeed(double value) {
@@ -503,6 +557,9 @@ class _MyHomePageState extends State<MyHomePage> {
   void _updatePosicao() {
     if(_espPosition < 0){
       espCarroPos = appCarroMinPos;
+    }
+    if(_espPosition > _espMaxStep){
+      _espMaxStep = _espPosition.ceil();
     }
     final proportion = _espMaxStep == 0 ? 0 : (appCarroMaxPos - appCarroMinPos) / _espMaxStep;
     espCarroPos = min(appCarroMinPos + _espPosition * proportion, appCarroMaxPos);
@@ -520,8 +577,8 @@ class _MyHomePageState extends State<MyHomePage> {
     //_espPosition  _espMaxStep
     if(_espDeslocamentoX < _espMaxStep){
 
-      int dist_atual = _espDeslocamentoX;
-      int dist_final = dist_atual+100;
+      num dist_atual = _espDeslocamentoX;
+      num dist_final = dist_atual+0.5;
 
       _publishMessage("x$dist_final");
     }
@@ -532,8 +589,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if(_espDeslocamentoX > appCarroMinPos){
 
-      int dist_atual = _espDeslocamentoX;
-      int dist_final = dist_atual-100;
+      num dist_atual = _espDeslocamentoX;
+      num dist_final = dist_atual-0.5;
 
       _publishMessage("x$dist_final");
     }
