@@ -549,7 +549,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _mqttSendPosition(DraggableDetails d) async{
-    final num pos = (_espMaxX*(appCarroMaxPos-appCarroPos)/(appCarroMaxPos-appCarroMinPos));
+    num pos = (_espMaxX*(appCarroMaxPos-appCarroPos)/(appCarroMaxPos-appCarroMinPos));
+    pos = (pos*10).roundToDouble() / 10.0;
     _publishMessage("x$pos");
     print("Change position $pos");
     await Future.delayed(Duration(seconds: 2));
