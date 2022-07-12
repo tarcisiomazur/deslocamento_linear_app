@@ -22,6 +22,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Flutter Demo',
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -54,10 +55,10 @@ class _MyHomePageState extends State<MyHomePage> {
   FocusNode speedFocus = FocusNode();
 
   bool _updateFromEsp = false;
-  bool dragOn = false;
+  bool carroDragOn = false;
 
   num _espDeslocamentoX = 0;
-  num _espMaxStep = 0;
+  num _espMaxX = 0;
   int _espCalibracao = 0;
   int _espSpeed = -1;
   num _espPosition = 0;
@@ -66,10 +67,10 @@ class _MyHomePageState extends State<MyHomePage> {
   int MAX_SPEED = 30;
 
   MqttConnectionState connectionState = MqttConnectionState.disconnected;
-  double appCarroPos = 35;
+  double appCarroPos = 275;
   double appCarroMaxPos = 275;
   double appCarroMinPos = 35;
-  double espCarroPos = 35;
+  double espCarroPos = 275;
 
   bool isLoading = false;
 
@@ -185,14 +186,14 @@ class _MyHomePageState extends State<MyHomePage> {
       Map<String, dynamic> data = jsonDecode(message);
 
       setState(() {
-        if(!dragOn && (_updateFromEsp || _espDeslocamentoX != data["deslocamentoX"])){
+        if(!carroDragOn && (_updateFromEsp || _espDeslocamentoX != data["deslocamentoX"])){
           _espDeslocamentoX = data["deslocamentoX"] ?? 0;
-          final proportion = _espMaxStep == 0 ? 0 : (appCarroMaxPos - appCarroMinPos) / _espMaxStep;
-          appCarroPos = min(appCarroMinPos + _espDeslocamentoX * proportion, appCarroMaxPos);
+          final proportion = _espMaxX == 0 ? 0 : (appCarroMaxPos - appCarroMinPos) / _espMaxX;
+          appCarroPos = max(appCarroMaxPos - _espDeslocamentoX * proportion, appCarroMinPos);
         }
-        if(_updateFromEsp || _espPosition != data["position"] || _espMaxStep != data["maxStep"]){
+        if(_updateFromEsp || _espPosition != data["position"] || _espMaxX != data["maxX"]){
           _espPosition = data["position"] ?? 0;
-          _espMaxStep = data["maxStep"] ?? 0;
+          _espMaxX = data["maxX"] ?? 0;
           _updatePosicao();
         }
         _espCalibracao = data["calibracao_stage"] ?? 0;
@@ -200,6 +201,7 @@ class _MyHomePageState extends State<MyHomePage> {
           speed = _espSpeed = data["speed"] ?? 0;
           speedController.text = speed.toString();
         }
+        _updateFromEsp = false;
       });
     } catch (ex) {
       print(ex.toString());
@@ -244,11 +246,11 @@ class _MyHomePageState extends State<MyHomePage> {
               child: Column(
                   children: [
                     Text(
-                      '$_espPosition mm -> $_espDeslocamentoX mm',
+                      _espPosition != _espDeslocamentoX ? '${_espPosition.toStringAsFixed(2)} mm -> ${_espDeslocamentoX.toStringAsFixed(2)} mm' : '${_espPosition.toStringAsFixed(2)} mm',
                       style: Theme
                           .of(context)
                           .textTheme
-                          .headline4,
+                          .headline5,
                     ),
                     ClipRRect(
                         child: Container(
@@ -276,7 +278,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                 top: appCarroPos,
                                 child: Draggable(
                                   axis: Axis.vertical,
-                                  onDragStarted: () => dragOn = true,
+                                  onDragStarted: () => carroDragOn = true,
                                   onDragUpdate: (d) {
                                     setState(() =>
                                     appCarroPos = min(max(
@@ -547,12 +549,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _mqttSendPosition(DraggableDetails d) async{
-    final int pos = (_espMaxStep*(appCarroPos-appCarroMinPos)/(appCarroMaxPos-appCarroMinPos)).floor();
-    /// TODO converter para num
+    final num pos = (_espMaxX*(appCarroMaxPos-appCarroPos)/(appCarroMaxPos-appCarroMinPos));
     _publishMessage("x$pos");
     print("Change position $pos");
     await Future.delayed(Duration(seconds: 2));
-    dragOn = false;
+    carroDragOn = false;
 
   }
 
@@ -566,13 +567,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _updatePosicao() {
     if(_espPosition < 0){
-      espCarroPos = appCarroMinPos;
+      espCarroPos = appCarroMaxPos;
     }
-    if(_espPosition > _espMaxStep){
-      _espMaxStep = _espPosition.ceil();
+    if(_espPosition > _espMaxX){
+      _espMaxX = _espPosition;
     }
-    final proportion = _espMaxStep == 0 ? 0 : (appCarroMaxPos - appCarroMinPos) / _espMaxStep;
-    espCarroPos = min(appCarroMinPos + _espPosition * proportion, appCarroMaxPos);
+    final proportion = _espMaxX == 0 ? 0 : (appCarroMaxPos - appCarroMinPos) / _espMaxX;
+    espCarroPos = max(appCarroMaxPos - _espPosition * proportion, appCarroMinPos);
   }
 
   void _mqttSendCalibration(){
@@ -584,8 +585,8 @@ class _MyHomePageState extends State<MyHomePage> {
   void _mqttSendLeft(){
     print("Movimentando para esquerda");
 
-    //_espPosition  _espMaxStep
-    if(_espDeslocamentoX < _espMaxStep){
+    //_espPosition  _espmaxX
+    if(_espDeslocamentoX < _espMaxX){
 
       num dist_atual = _espDeslocamentoX;
       num dist_final = dist_atual+0.5;
