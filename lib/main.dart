@@ -289,20 +289,30 @@ class _MyHomePageState extends State<MyHomePage> {
                                 ),
                               ),
                               Positioned(
-                                child: RulerBarWidget(
+                                bottom: 75,
+                                left: 37,
+                                child: RulerWidget(
+                                  scaleBackgroundColor: Colors.transparent,
+                                  height: 100,
+                                  indicatorWidget: Column(
+                                    children: <Widget>[
+                                      Icon(
+                                        Icons.arrow_drop_down,
+                                        color: Colors.red,
+                                      ),
+                                    ],
+                                  ),
+                                  largeScaleBarsInterval: 7,
+                                  smallScaleBarsInterval: 2,
+                                  lowerIndicatorLimit: 0,
+                                  lowerMidIndicatorLimit: 0,
+                                  upperMidIndicatorLimit: 0,
+                                  upperIndicatorLimit: 0,
+                                  barsColor: Colors.red,
+                                  inRangeBarColor: Colors.green,
+                                  behindRangeBarColor: Colors.orangeAccent,
+                                  outRangeBarColor: Colors.red,
                                   axis: Axis.vertical,
-                                  behindRangeBarColor: Colors.red,
-                                  num: 9,
-                                  indicatorWidget: Icon(Icons.abc),
-                                  lowerLimit:5,
-                                  inRangeBarColor: Colors.grey,
-                                  midInterval: 9,
-                                  midLimitLower: 1,
-                                  midLimitUpper: 90,
-                                  normalBarColor: Colors.green,
-                                  outRangeBarColor: Colors.orange,
-                                  type: RulerBar.SMALL_BAR,
-                                  upperLimit: 100,
                                 ),
                               ),
                             ],
@@ -396,7 +406,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             flex: 2,
                             child: Padding(
                               padding: EdgeInsets.only(
-                                  right: 20, top: 40, left: 100),
+                                  right: 20, top: 40, left: 50),
                               child:
                               ElevatedButton.icon(
                                   icon: Icon(Icons.arrow_back_rounded),
@@ -449,7 +459,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             flex: 2,
                             child: Padding(
                               padding: EdgeInsets.only(
-                                  right: 100, top: 40, left: 20),
+                                  right: 50, top: 40, left: 20),
                               child:
                               ElevatedButton.icon(
                                   icon: Icon(Icons.arrow_forward_rounded),
